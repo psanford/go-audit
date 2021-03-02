@@ -10,7 +10,6 @@ import (
 
 	dockertypes "github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/golang/groupcache/lru"
 	"github.com/spf13/viper"
 )
 
@@ -42,32 +41,6 @@ type ContainerParser struct {
 	dockerCache Cache
 }
 
-type Cache interface {
-	Add(lru.Key, interface{})
-	Get(lru.Key) (interface{}, bool)
-}
-
-type NoCache struct{}
-
-func (NoCache) Add(lru.Key, interface{})        {}
-func (NoCache) Get(lru.Key) (interface{}, bool) { return nil, false }
-
-// NewCache returns an lru.Cache if size is >0, NoCache otherwise
-func NewCache(size int) Cache {
-	if size > 0 {
-		return lru.New(size)
-	}
-	return NoCache{}
-}
-
-func cacheSize(c Cache) int {
-	switch x := c.(type) {
-	case *lru.Cache:
-		return x.MaxEntries
-	}
-	return 0
-}
-
 func NewContainerParser(config *viper.Viper) (*ContainerParser, error) {
 	var docker *dockerclient.Client
 	if config.GetBool("docker") {
@@ -95,7 +68,7 @@ func NewContainerParser(config *viper.Viper) (*ContainerParser, error) {
 // Find `pid=` in a message and adds the container ids to the Extra object
 func (c ContainerParser) Parse(am *AuditMessage) {
 	switch am.Type {
-	case 1300, 1326:
+	case 1300, 1326: // AUDIT_SYSCALL, AUDIT_SECCOMP
 		am.Containers = c.getContainersForPid(getPid(am.Data))
 	}
 }
